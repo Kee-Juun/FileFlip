@@ -77,6 +77,7 @@ class MainWindow(QMainWindow):
         self.resize(*DEFAULT_WINDOW_SIZE)
 
         self._build_ui()
+        self._restore_preferences()
         self._connect_signals()
         self._refresh_controls()
         self._set_output_display()
@@ -302,6 +303,16 @@ class MainWindow(QMainWindow):
         self.clear_files_button.clicked.connect(self.clear_files)
         self.output_button.clicked.connect(self.choose_output_folder)
         self.source_folder_checkbox.toggled.connect(self._source_folder_toggled)
+        for checkbox in (
+            self.source_folder_checkbox,
+            self.overwrite_checkbox,
+            self.delete_originals_checkbox,
+            self.save_log_checkbox,
+            self.open_when_done_checkbox,
+        ):
+            checkbox.toggled.connect(self._save_option_preferences)
+        self.dpi_combo.currentIndexChanged.connect(self._save_option_preferences)
+        self.quality_combo.currentIndexChanged.connect(self._save_option_preferences)
         self.details_button.toggled.connect(self.log_view.setVisible)
         self.start_button.clicked.connect(self.start_conversion)
         self.cancel_button.clicked.connect(self.cancel_conversion)
@@ -359,6 +370,90 @@ class MainWindow(QMainWindow):
             return Theme.from_label(label)
         except ValueError:
             return Theme.LIGHT
+
+    def _restore_preferences(self) -> None:
+        """Restore the last conversion route and user-controlled run options."""
+        source_format = self._saved_file_format(
+            "conversion/from_format",
+            SOURCE_FORMATS,
+            FileFormat.PDF,
+        )
+        source_index = self.source_format_combo.findData(source_format)
+        self.source_format_combo.setCurrentIndex(max(0, source_index))
+        self._populate_target_formats(source_format)
+
+        target_format = self._saved_file_format(
+            "conversion/to_format",
+            SUPPORTED_TARGETS[source_format],
+            SUPPORTED_TARGETS[source_format][0],
+        )
+        target_index = self.target_format_combo.findData(target_format)
+        self.target_format_combo.setCurrentIndex(max(0, target_index))
+        self._last_source_format = source_format
+        self._last_target_format = self.current_target_format
+
+        self.source_folder_checkbox.setChecked(
+            self.settings.value("options/original_folders", True, type=bool)
+        )
+        self.overwrite_checkbox.setChecked(
+            self.settings.value("options/overwrite", False, type=bool)
+        )
+        self.delete_originals_checkbox.setChecked(
+            self.settings.value("options/delete_originals", False, type=bool)
+        )
+        self.save_log_checkbox.setChecked(
+            self.settings.value("options/save_log", True, type=bool)
+        )
+        self.open_when_done_checkbox.setChecked(
+            self.settings.value("options/open_when_done", True, type=bool)
+        )
+
+        self._restore_combo_value(self.dpi_combo, "options/image_dpi", 200)
+        self._restore_combo_value(self.quality_combo, "options/image_quality", 90)
+        self._update_format_options()
+
+    def _saved_file_format(
+        self,
+        key: str,
+        allowed_formats: tuple[FileFormat, ...],
+        default: FileFormat,
+    ) -> FileFormat:
+        saved_key = self.settings.value(key, default.key, type=str)
+        return next(
+            (file_format for file_format in allowed_formats if file_format.key == saved_key),
+            default,
+        )
+
+    def _restore_combo_value(self, combo: QComboBox, key: str, default: int) -> None:
+        try:
+            saved_value = int(self.settings.value(key, default))
+        except (TypeError, ValueError):
+            saved_value = default
+        index = combo.findData(saved_value)
+        combo.setCurrentIndex(index if index >= 0 else combo.findData(default))
+
+    def _save_conversion_preferences(self) -> None:
+        """Persist a validated From/To route immediately."""
+        self.settings.setValue("conversion/from_format", self.current_source_format.key)
+        self.settings.setValue("conversion/to_format", self.current_target_format.key)
+        self.settings.sync()
+
+    def _save_option_preferences(self, *_args: object) -> None:
+        """Persist checkboxes and contextual image settings immediately."""
+        self.settings.setValue(
+            "options/original_folders", self.source_folder_checkbox.isChecked()
+        )
+        self.settings.setValue("options/overwrite", self.overwrite_checkbox.isChecked())
+        self.settings.setValue(
+            "options/delete_originals", self.delete_originals_checkbox.isChecked()
+        )
+        self.settings.setValue("options/save_log", self.save_log_checkbox.isChecked())
+        self.settings.setValue(
+            "options/open_when_done", self.open_when_done_checkbox.isChecked()
+        )
+        self.settings.setValue("options/image_dpi", self.dpi_combo.currentData())
+        self.settings.setValue("options/image_quality", self.quality_combo.currentData())
+        self.settings.sync()
 
     def _apply_theme(self, theme: Theme) -> None:
         self.theme = theme
@@ -466,6 +561,7 @@ class MainWindow(QMainWindow):
         self._populate_target_formats(source_format)
         self._last_target_format = self.current_target_format
         self._update_format_options()
+        self._save_conversion_preferences()
 
     def _target_format_changed(self) -> None:
         target_format = self.current_target_format
@@ -481,6 +577,7 @@ class MainWindow(QMainWindow):
             self.clear_files()
         self._last_target_format = target_format
         self._update_format_options()
+        self._save_conversion_preferences()
 
     def _confirm_format_change(self) -> bool:
         return ask_ok_cancel(

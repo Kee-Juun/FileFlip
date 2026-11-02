@@ -25,7 +25,7 @@ package.
 
 - Two smart **From** and **To** selectors replace the old single mode menu. The
   destination list automatically shows only routes supported by the selected
-  source family.
+  source family. FileFlip restores the last selected route on the next launch.
 - PDF to Word uses `pdf2docx`.
 - If normal PDF to Word conversion fails, FileFlip tries a text-only Tesseract
   OCR fallback. It checks the same places as the collector/autorouter tools:
@@ -64,6 +64,8 @@ package.
 - **Save log** controls whether a text log is written. It is on by default and
   saves to the selected output folder or the first source folder when using
   source folders. Log filenames use the `fileflip-log_` prefix.
+- Checkbox preferences, image DPI, and image quality are saved immediately and
+  restored the next time FileFlip starts.
 
 ## Development Checks
 

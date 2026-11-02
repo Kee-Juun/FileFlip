@@ -46,7 +46,8 @@ while `ui/decorations.py` paints the theme skin surfaces.
 ## Conversion Flow
 
 1. `ui.gui.MainWindow` uses smart **From** and **To** selectors to expose only
-   supported routes, then gathers the selected files and options.
+   supported routes, restores the user's last route and option preferences,
+   then gathers the selected files and options.
 2. `ui.worker.ConversionWorker` receives immutable `ConversionOptions`.
 3. `core.converter.DocumentConverter` converts one file at a time.
 4. PDF to Word uses `pdf2docx` first. If that fails, `core.ocr` tries a
